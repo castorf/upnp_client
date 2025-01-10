@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:upnp_client/src/device.dart';
 import 'package:xml/xml.dart';
+import 'package:meta/meta.dart';
 
 ///
 /// [DeviceDiscoverer] uses Simple Service Discovery Protocol Based on UDP Multicast (SSDP) to issue searches and find UPnP devices and services.
@@ -13,6 +14,9 @@ import 'package:xml/xml.dart';
 class DeviceDiscoverer {
   final _sockets = <RawDatagramSocket>[];
   final _devices = StreamController<Device>.broadcast();
+  // Why is this HttpClient rather than http.Client?
+  // Is it safe to pull it up here instead of down in the addDevice method?
+  final _client = HttpClient();
   static const _supportedAddressTypes = [
     InternetAddressType.IPv4,
     InternetAddressType.IPv6
@@ -64,12 +68,13 @@ class DeviceDiscoverer {
           return;
         }
 
-        _addDevice(headers);
+        addDevice(headers);
       }
     });
   }
 
-  void _addDevice(List<String> headers) async {
+  @visibleForTesting
+  void addDevice(List<String> headers) async {
     var location = headers.firstWhere(
         (element) => element.toUpperCase().contains('LOCATION'),
         orElse: () => '');
@@ -78,7 +83,7 @@ class DeviceDiscoverer {
 
     location = location.substring(location.indexOf('http'));
 
-    var request = await HttpClient().getUrl(Uri.parse(location));
+    var request = await _client.getUrl(Uri.parse(location));
     try {
       var response = await request.close();
       final deviceXml =
